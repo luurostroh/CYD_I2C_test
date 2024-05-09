@@ -19,8 +19,39 @@
 #include <SPI.h>
 #include <TFT_eSPI.h>  // Hardware-specific library
 #include "Wire.h"
+#include "ESP32TimerInterrupt.h"
 //touch panel
 #include <XPT2046_Touchscreen.h>
+
+/////////////////////////////////////////////////////////
+#define IN1 0x1
+#define IN2 0x2
+#define IN3 0x4
+#define IN4 0x8
+#define IN5 0x10
+#define IN6 0x20
+#define IN7 0x40
+#define IN8 0x80
+
+#define OUT1 0x1
+#define OUT2 0x2
+#define OUT3 0x4
+#define OUT4 0x8
+#define OUT5 0x10
+#define OUT6 0x20
+#define OUT7 0x40
+#define OUT8 0x80
+
+typedef union 
+{
+  uint64_t data;
+  uint8_t data_arr[8];
+}I2C_data_t;
+I2C_data_t i2c_inputs;
+I2C_data_t i2c_outputs;
+
+#define I2C_OUT_ADDR 56
+#define I2C_IN_ADDR 48
 
 #define XPT2046_IRQ 36
 #define XPT2046_MOSI 32
@@ -90,8 +121,18 @@ TFT_eSPI_Button outs[8];
 
 //------------------------------------------------------------------------------------------
 
-void setup() {
+bool IRAM_ATTR TimerHandler0(void * timerNo)
+{
+   R_W_i2c();
+//Serial.println("tick");
+	return true;
+}
 
+ESP32Timer ITimer0(0);
+
+void setup() 
+{
+  
 //  Wire.setPins(27,22);
   Wire.begin(27,22,400000);
   // Use serial port
@@ -122,6 +163,7 @@ void setup() {
  // touch_calibrate();
   // Draw keypad
   drawI_O();
+  ITimer0.attachInterruptInterval(100000, TimerHandler0);
 }
 
 //------------------------------------------------------------------------------------------
@@ -133,10 +175,38 @@ void loop(void)
 
   // Pressed will be set true is there is a valid touch on the screen
   bool pressed = ts.tirqTouched() && ts.touched();
-
- R_W_i2c();
-
-    delay(1);  // UI debouncing
+ i2c_outputs.data_arr[0] |= OUT1;
+ delay(50);
+ i2c_outputs.data_arr[0] &= ~OUT1; 
+ delay(1000);  
+  i2c_outputs.data_arr[0] |= OUT2;
+ delay(50);
+ i2c_outputs.data_arr[0] &= ~OUT2; 
+ delay(1000); 
+  i2c_outputs.data_arr[0] |= OUT3;
+ delay(50);
+ i2c_outputs.data_arr[0] &= ~OUT3; 
+ delay(1000); 
+  i2c_outputs.data_arr[0] |= OUT4;
+ delay(50);
+ i2c_outputs.data_arr[0] &= ~OUT4; 
+ delay(1000); 
+  i2c_outputs.data_arr[0] |= OUT5;
+ delay(50);
+ i2c_outputs.data_arr[0] &= ~OUT5; 
+ delay(1000); 
+  i2c_outputs.data_arr[0] |= OUT6;
+ delay(50);
+ i2c_outputs.data_arr[0] &= ~OUT6; 
+ delay(1000); 
+ i2c_outputs.data_arr[0] |= OUT7;
+ delay(50);
+ i2c_outputs.data_arr[0] &= ~OUT7; 
+ delay(1000); 
+  i2c_outputs.data_arr[0] |= OUT8;
+ delay(50);
+ i2c_outputs.data_arr[0] &= ~OUT8; 
+ delay(1000); 
   }
 
 
@@ -166,16 +236,7 @@ void drawI_O()
 
 
 
-typedef union 
-{
-  uint64_t data;
-  uint8_t data_arr[8];
-}I2C_data_t;
 
-I2C_data_t i2c_inputs;
-I2C_data_t i2c_outputs;
-#define I2C_OUT_ADDR 56
-#define I2C_IN_ADDR 48
 
 void R_W_i2c()
 {
@@ -188,7 +249,7 @@ void R_W_i2c()
     Wire.readBytes(i2c_inputs.data_arr, bytesReceived);
   }
 
-  i2c_outputs.data = ~i2c_inputs.data;
+ // i2c_outputs.data = ~i2c_inputs.data;
   //Write message to the slave
   Wire.beginTransmission(I2C_OUT_ADDR);
   Wire.write(i2c_outputs.data_arr,8);
