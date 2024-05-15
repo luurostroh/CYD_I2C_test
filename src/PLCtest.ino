@@ -15,7 +15,6 @@
 // calibration data
 
 #include "FS.h"
-
 #include <SPI.h>
 #include <TFT_eSPI.h>  // Hardware-specific library
 #include "Wire.h"
@@ -47,8 +46,10 @@ typedef union
   uint64_t data;
   uint8_t data_arr[8];
 }I2C_data_t;
-I2C_data_t i2c_inputs;
-I2C_data_t i2c_outputs;
+I2C_data_t i2c_inputs={0};
+I2C_data_t i2c_inputs_tmp={0};
+I2C_data_t i2c_outputs={0};
+I2C_data_t i2c_outputs_tmp={0};
 
 #define I2C_OUT_ADDR 56
 #define I2C_IN_ADDR 48
@@ -119,20 +120,42 @@ uint16_t keyColor[16] = { TFT_RED, TFT_DARKGREY, TFT_DARKGREEN,
 TFT_eSPI_Button inps[8];
 TFT_eSPI_Button outs[8];
 
+
+SemaphoreHandle_t I2Csemaphore;
+
+void task_RW_I2C(void *parameter)
+{
+  while(1)
+  {
+     // xSemaphoreTake(I2Csemaphore, portMAX_DELAY);
+      vTaskDelay(1);
+      R_W_i2c();
+  }
+
+}
 //------------------------------------------------------------------------------------------
+
+int cnt=0;
 
 bool IRAM_ATTR TimerHandler0(void * timerNo)
 {
-   R_W_i2c();
-//Serial.println("tick");
+ static portBASE_TYPE xHigherPriorityTaskWoken;
+ xHigherPriorityTaskWoken = pdFALSE;
+// xSemaphoreGiveFromISR(I2Csemaphore,(BaseType_t*)&xHigherPriorityTaskWoken);
+ //if(++cnt>500){cnt=0;Serial.println("tick");}
+
 	return true;
 }
 
-ESP32Timer ITimer0(0);
+//ESP32Timer ITimer0(0);
 
 void setup() 
 {
-  
+  i2c_inputs.data = 0xFFFFFFFFFFFFFFFF;
+  i2c_inputs_tmp.data = 0xFFFFFFFFFFFFFFFF;
+  i2c_outputs.data = 0;
+  i2c_outputs_tmp.data = 0;
+
 //  Wire.setPins(27,22);
   Wire.begin(27,22,400000);
   // Use serial port
@@ -163,7 +186,11 @@ void setup()
  // touch_calibrate();
   // Draw keypad
   drawI_O();
-  ITimer0.attachInterruptInterval(100000, TimerHandler0);
+
+  xTaskCreate(task_RW_I2C,"taskRW",10000,NULL,1,NULL);
+  vSemaphoreCreateBinary(I2Csemaphore);
+ // ITimer0.attachInterruptInterval(10000, TimerHandler0);
+  // vTaskStartScheduler();
 }
 
 //------------------------------------------------------------------------------------------
@@ -176,37 +203,37 @@ void loop(void)
   // Pressed will be set true is there is a valid touch on the screen
   bool pressed = ts.tirqTouched() && ts.touched();
  i2c_outputs.data_arr[0] |= OUT1;
- delay(50);
+ delay(100);
  i2c_outputs.data_arr[0] &= ~OUT1; 
- delay(1000);  
+ delay(200);  
   i2c_outputs.data_arr[0] |= OUT2;
- delay(50);
+ delay(100);
  i2c_outputs.data_arr[0] &= ~OUT2; 
- delay(1000); 
+ delay(200); 
   i2c_outputs.data_arr[0] |= OUT3;
- delay(50);
+ delay(100);
  i2c_outputs.data_arr[0] &= ~OUT3; 
- delay(1000); 
+ delay(200); 
   i2c_outputs.data_arr[0] |= OUT4;
- delay(50);
+ delay(100);
  i2c_outputs.data_arr[0] &= ~OUT4; 
- delay(1000); 
+ delay(200); 
   i2c_outputs.data_arr[0] |= OUT5;
- delay(50);
+ delay(100);
  i2c_outputs.data_arr[0] &= ~OUT5; 
- delay(1000); 
+ delay(200); 
   i2c_outputs.data_arr[0] |= OUT6;
- delay(50);
+ delay(100);
  i2c_outputs.data_arr[0] &= ~OUT6; 
- delay(1000); 
+ delay(200); 
  i2c_outputs.data_arr[0] |= OUT7;
- delay(50);
+ delay(100);
  i2c_outputs.data_arr[0] &= ~OUT7; 
- delay(1000); 
+ delay(200); 
   i2c_outputs.data_arr[0] |= OUT8;
- delay(50);
+ delay(100);
  i2c_outputs.data_arr[0] &= ~OUT8; 
- delay(1000); 
+ delay(200); 
   }
 
 
@@ -221,15 +248,15 @@ void drawI_O()
   uint16_t xpos = 20;
   for (uint8_t b = 0; b < 8; b++) 
   {
-    outs[0].initButton(&tft,xpos,20,30,30,3,TFT_YELLOW,TFT_BLACK,lbls[b],1);
-    outs[0].drawButton();
+    outs[b].initButton(&tft,xpos,20,30,30,4,TFT_DARK_YELLOW,TFT_BLACK,lbls[b],1);
+    outs[b].drawButton();
     xpos += 40;
   }
   xpos = 20;
   for (uint8_t c = 0; c < 8; c++) 
   {
-    inps[0].initButton(&tft,xpos,220,30,30,3,TFT_DARKGREEN,TFT_YELLOW,lbls[c],1);
-    inps[0].drawButton();
+    inps[c].initButton(&tft,xpos,220,30,30,3,TFT_DARKGREEN,TFT_YELLOW,lbls[c],1);
+    inps[c].drawButton();
     xpos += 40;
   }
 }
@@ -240,25 +267,50 @@ void drawI_O()
 
 void R_W_i2c()
 {
-
+  uint8_t changed = 0;
    //Read 8 bytes from the slave
   uint8_t bytesReceived = Wire.requestFrom(I2C_IN_ADDR, 8);
-  Serial.printf("requestFrom: %u\n", bytesReceived);
+ // Serial.printf("requestFrom: %u\n", bytesReceived);
   if ((bool)bytesReceived) 
   {  //If received more than zero bytes
     Wire.readBytes(i2c_inputs.data_arr, bytesReceived);
   }
-
  // i2c_outputs.data = ~i2c_inputs.data;
   //Write message to the slave
   Wire.beginTransmission(I2C_OUT_ADDR);
   Wire.write(i2c_outputs.data_arr,8);
   uint8_t error = Wire.endTransmission(true);
- // Serial.printf("endTransmission: %u\n", error);
+ if(i2c_inputs.data != i2c_inputs_tmp.data)
+  {
+     i2c_inputs_tmp.data = i2c_inputs.data;
+    for(int i=0;i<8;i++)
+    {
+      if(i2c_inputs.data_arr[0] & 1<<i)
+      {
+       inps[i].setBackground(TFT_DARKGREEN,TFT_YELLOW);
+      }
+      else 
+      {
+        inps[i].setBackground(TFT_GREEN,TFT_YELLOW);
+      }    
+    }
+  }
 
- 
-
-
+ if(i2c_outputs.data != i2c_outputs_tmp.data)
+  {
+    i2c_outputs_tmp.data = i2c_outputs.data;    
+    for(int ii=0;ii<8;ii++)
+    {
+      if(i2c_outputs.data_arr[0] & 1<<ii)
+      {
+        outs[ii].setBackground(TFT_YELLOW,TFT_BLACK);
+      }
+      else 
+      {
+        outs[ii].setBackground(TFT_DARK_YELLOW,TFT_BLACK);
+      }
+    }
+  }
 }
 
 //------------------------------------------------------------------------------------------
