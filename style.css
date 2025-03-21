@@ -1,0 +1,33 @@
+body {
+    background-color: hwb(246 21% 49% / 0.452);
+  }
+  
+  h1 {
+    color: #09262b;
+    text-align: center;
+  }
+  
+  p {
+    font-family: verdana;
+    font-size: 20px;
+  }
+
+  .btn1 {
+    height: 30px;
+    width: 30px;
+    background-color:green;
+  }
+
+  .btn2 {
+    height: 30px;
+    width: 30px;
+    background-color:darkgoldenrod;
+  }
+
+  table {
+    vertical-align: middle;
+  }
+
+  tr,td {
+    padding: 10px;
+  }

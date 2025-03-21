@@ -232,6 +232,7 @@ void loop(void)
 {
   TS_Point p;
   uint16_t x_,y_;
+  int16_t t_x = 0, t_y = 0,t_x1 = 0, t_y1 = 0;  // To store the touch coordinates
     if (ts.tirqTouched() && ts.touched()){
         p = ts.getPoint();
         x_ = p.x;
@@ -243,8 +244,10 @@ void loop(void)
         
         // Adjust press state of each key appropriately
         for (uint8_t b = 0; b < 8; b++) {
-            if (inps[b].contains(p.x,p.y)) {
-              Serial.print("stisknut button ");Serial.println(b);
+          // inps[b].getArea(&t_x,&t_y,&t_x1,&t_y1);
+          // printf("x:%d y:%d x1:%d y1:%d\n",t_x,t_y,t_x1,t_y1);
+            if (inps[b].contains(x_,y_)) {
+              
                 inps[b].press(true); // tell the button it is pressed
             } else {
                 inps[b].press(false); // tell the button it is NOT pressed
@@ -292,7 +295,7 @@ for (size_t i = 0; i < 8; i++)
 {
   if(inps[i].justPressed())
   {
-    Serial.print("press ");Serial.println(i);
+    printf("stisknut button %u ",i);
     i2c_inputs.data |= 1<<i;
   }
   else i2c_inputs.data &= ~(1<<i);
@@ -371,7 +374,7 @@ void R_W_i2c()
       if(i2c_inputs.data_arr[0] & 1<<i)
       {
        inps[i].press(true);
-       Serial.print("press");
+       Serial.print("press");Serial.println(i+1);
        inps[i].setBackground(TFT_DARKGREEN,TFT_YELLOW);
       }
       else 
